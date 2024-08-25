@@ -6,3 +6,5 @@ Based on this published user script : https://greasyfork.org/en/scripts/500403-w
 
 Current updates to the script from the base script :
 - Added more supported transaction types. More transaction types are most probably missing and will be added as I encounter them.
+- Added French translation. Language used is based on locale set on the WealthSimple page/account.
+  - Bonus : Emojis are displayed correctly
