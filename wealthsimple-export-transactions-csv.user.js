@@ -9,6 +9,7 @@
 // @license     MIT
 // @author      eaglesemanation
 // @description Adds export buttons to Activity feed and to Account specific activity. They will export transactions within certain timeframe into CSV, options are "This Month", "Last 3 Month", "All". This should provide better transaction description than what is provided by preexisting CSV export feature.
+// @downloadURL https://github.com/fdarveau/wealthsimple-export-transactions/raw/main/wealthsimple-export-transactions-csv.user.js
 // ==/UserScript==
 
 const defaultLanguage = "en_CA";
