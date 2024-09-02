@@ -18,6 +18,7 @@ let language = defaultLanguage;
 
 const texts = {
   en_CA: {
+    account: "Account",
     accountFundingTransactionNotesPrefix: "Direct deposit from",
     amount: "Amount",
     buttonsLabel: "Export transactions as CSV",
@@ -31,12 +32,17 @@ const texts = {
     dividendReinvestedNotesPrefix: "Reinvested dividend into",
     electronicFundsTransferNotesPrefix: "Direct deposit from",
     fromTimeFrame: "from",
-    interestPayee: "WealthSimple",
+    incentiveBonus: "Promotional bonus",
+    institutionalTransferReceived: "Interinstitutional transfer from ",
+    institutionalTransferFeeRefund: "Transfer fee refund",
+    wealthSimple: "WealthSimple",
     interestNotes: "Interest",
-    marketOrderNotesPrefix: "Bought",
+    orderNotesPrefix: "Bought",
     nonRegistered: "Non-registered",
     notes: "Notes",
     payee: "Payee",
+    transferDestination: "Transfered from ",
+    transferSource: "Transfered to ",
     wealthSimpleCashTransferReceivedNotesPrefix:
       "Received WealthSimple Cash transfer from",
     wealthSimpleCashTransferSentNotesPrefix:
@@ -47,6 +53,7 @@ const texts = {
     upToTimeFrame: "up to",
   },
   fr_CA: {
+    account: "Compte",
     accountFundingTransactionNotesPrefix: "Dépôt direct de",
     amount: "Montant",
     buttonsLabel: "Exporter les transactions au format CSV",
@@ -60,12 +67,17 @@ const texts = {
     dividendReinvestedNotesPrefix: "Dividendes réinvestis dans",
     electronicFundsTransferNotesPrefix: "Dépôt direct de",
     fromTimeFrame: "du",
-    interestPayee: "WealthSimple",
+    incentiveBonus: "Prime de récompense",
+    institutionalTransferReceived: "Transfert interinstitution",
+    institutionalTransferFeeRefund: "Remboursement des frais de transfert",
+    wealthSimple: "WealthSimple",
     interestNotes: "Intérêt",
-    marketOrderNotesPrefix: "Acheté :",
+    orderNotesPrefix: "Acheté :",
     nonRegistered: "Non enregistré",
     notes: "Notes",
     payee: "Bénéficiaire",
+    transferDestination: "Transferé de ",
+    transferSource: "Transferé dans ",
     wealthSimpleCashTransferReceivedNotesPrefix:
       "Transfert WealthSimple Cash reçu de",
     wealthSimpleCashTransferSentNotesPrefix:
@@ -333,6 +345,7 @@ function getOauthCookie() {
  * @property {string} amount
  * @property {string} amountSign
  * @property {string} occurredAt
+ * @property {string} opposingAccountId
  * @property {string} type
  * @property {string} subType
  * @property {string} eTransferEmail
@@ -352,6 +365,7 @@ const activityFeedItemFragment = `
       amount
       amountSign
       occurredAt
+      opposingAccountId
       type
       subType
       eTransferEmail
@@ -612,6 +626,57 @@ async function accountFinancials() {
 }
 
 /**
+ * @typedef {Object} InstitutionalTransfer
+ * @property {string} institutionName
+ * @property {String} transferStatus
+ * @property {string} redactedInstitutionAccountNumber
+ */
+
+const fetchInstitutionalTransferQuery = `
+query FetchInstitutionalTransfer($id: ID!) {
+  accountTransfer(id: $id) {
+    ...InstitutionalTransfer
+    __typename
+  }
+}
+
+fragment InstitutionalTransfer on InstitutionalTransfer {
+  institutionName: institution_name
+  transferStatus: external_state
+  redactedInstitutionAccountNumber: redacted_institution_account_number
+}
+`;
+
+/**
+ * @param {string} transferId
+ * @returns {Promise<InstitutionalTransfer>}
+ */
+async function institutionalTransfer(transferId) {
+  let respJson = await GM.xmlHttpRequest({
+    url: "https://my.wealthsimple.com/graphql",
+    method: "POST",
+    responseType: "json",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${getOauthCookie().access_token}`,
+    },
+    data: JSON.stringify({
+      operationName: "FetchInstitutionalTransfer",
+      query: fetchInstitutionalTransferQuery,
+      variables: {
+        id: transferId,
+      },
+    }),
+  });
+
+  if (respJson.status !== 200) {
+    throw `Failed to fetch transfer info: ${respJson.responseText}`;
+  }
+  let resp = JSON.parse(respJson.responseText);
+  return resp.data.accountTransfer;
+}
+
+/**
  * @typedef {Object} TransferInfo
  * @property {string} id
  * @property {string} status
@@ -623,7 +688,6 @@ async function accountFinancials() {
  * @typedef {Object} BankInfo
  * @property {string} accountName
  * @property {string} accountNumber
- * @property {string} institutionName
  * @property {string} nickname
  */
 
@@ -713,13 +777,15 @@ async function transactionsToCsvBlobs(transactions) {
  * @returns {Promise<Blob>}
  */
 async function accountTransactionsToCsvBlob(transactions) {
-  let csv = `${texts[language].date}, ${texts[language].payee},${texts[language].notes},${texts[language].category},${texts[language].amount}\n`;
+  let csv = `${texts[language].date}, ${texts[language].account}, ${texts[language].payee},${texts[language].notes},${texts[language].category},${texts[language].amount}\n`;
   for (const transaction of transactions) {
     let date = new Date(transaction.occurredAt);
     // JS Date type is absolutly horible, I hope Temporal API will be better
     let dateStr = `${date.getFullYear()}-${
       date.getMonth() + 1
     }-${date.getDate()}`;
+
+    let account = getAccountLabel(transaction.accountId);
 
     let payee = null;
     let notes = null;
@@ -730,10 +796,12 @@ async function accountTransactionsToCsvBlob(transactions) {
 
     // Most transactions in Wealthsimple don't have category, skipping
     let category = "";
+    let info = null;
+    let bankInfo = null;
 
     switch (type) {
       case "INTEREST":
-        payee = texts[language].interestPayee;
+        payee = texts[language].wealthSimple;
         notes = texts[language].interestNotes;
         break;
       case "WITHDRAWAL/E_TRANSFER":
@@ -753,8 +821,9 @@ async function accountTransactionsToCsvBlob(transactions) {
         notes = `${texts[language].dividendReinvestedNotesPrefix} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
         break;
       case "DIY_BUY/MARKET_ORDER":
+      case "DIY_BUY/LIMIT_ORDER":
         payee = transaction.assetSymbol;
-        notes = `${texts[language].marketOrderNotesPrefix} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
+        notes = `${texts[language].orderNotesPrefix} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
         break;
       case "DEPOSIT/AFT":
         payee = transaction.aftOriginatorName;
@@ -762,14 +831,15 @@ async function accountTransactionsToCsvBlob(transactions) {
         category = transaction.aftTransactionCategory;
         break;
       case "DEPOSIT/EFT":
-        let info = await fundsTransfer(transaction.externalCanonicalId);
-        let bankInfo = info.source.bankAccount;
+        info = await fundsTransfer(transaction.externalCanonicalId);
+        bankInfo = info.source.bankAccount;
         payee = `${bankInfo.institutionName} ${
           bankInfo.nickname || bankInfo.accountName
         } ${bankInfo.accountNumber || ""}`;
         notes = `${texts[language].electronicFundsTransferNotesPrefix} ${payee}`;
         break;
       case "P2P_PAYMENT/SEND_RECEIVED":
+      case "P2P_PAYMENT/REQUEST":
         payee = transaction.p2pHandle;
         notes = `${texts[language].wealthSimpleCashTransferReceivedNotesPrefix} ${transaction.p2pHandle}`;
         if (transaction.p2pMessage) {
@@ -782,6 +852,27 @@ async function accountTransactionsToCsvBlob(transactions) {
         if (transaction.p2pMessage) {
           notes += ` ${texts[language].withNote} : ${transaction.p2pMessage}`;
         }
+        break;
+      case "INTERNAL_TRANSFER/SOURCE":
+        payee = getAccountLabel(transaction.opposingAccountId);
+        notes = `${texts[language].transferSource} ${payee}`;
+        break;
+      case "INTERNAL_TRANSFER/DESTINATION":
+        payee = getAccountLabel(transaction.opposingAccountId);
+        notes = `${texts[language].transferDestination} ${payee}`;
+        break;
+      case "PROMOTION/INCENTIVE_BONUS":
+        payee = texts[language].wealthSimple;
+        notes = `${texts[language].incentiveBonus}`;
+        break;
+      case "INSTITUTIONAL_TRANSFER_INTENT/TRANSFER_IN":
+        info = await institutionalTransfer(transaction.externalCanonicalId);
+        payee = `${info.institutionName} - ***${info.redactedInstitutionAccountNumber}`;
+        notes = `${texts[language].institutionalTransferReceived} ${payee}`;
+        break;
+      case "REFUND/TRANSFER_FEE_REFUND":
+        payee = texts[language].wealthSimple;
+        notes = `${texts[language].institutionalTransferFeeRefund}`;
         break;
       default:
         console.error(
@@ -796,7 +887,7 @@ async function accountTransactionsToCsvBlob(transactions) {
       amount = `-${amount}`;
     }
 
-    let entry = `"${dateStr}","${payee}","${notes}","${category}","${amount}"`;
+    let entry = `"${dateStr}", ${account},"${payee}","${notes}","${category}","${amount}"`;
     csv += `${entry}\n`;
   }
   return new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -849,4 +940,17 @@ function formatDate(date) {
   return `${date.getFullYear()}-${(date.getMonth() + 1)
     .toString()
     .padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}`;
+}
+
+/**
+ * Returns a label for the accound ID received
+ * 
+ * @param {string} accountId
+ */
+function getAccountLabel(accountId) {
+  let accountIdParts = accountId.split('-');
+  let accountLabel = accountIdParts[0];
+  if (accountId.startsWith('non-registered')) accountLabel = 'non-registered';
+  if (accountIdParts[1] === 'cash') accountLabel = 'cash';
+  return accountLabel.toUpperCase();
 }
