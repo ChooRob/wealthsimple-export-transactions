@@ -5,7 +5,7 @@
 // @namespace   Violentmonkey Scripts
 // @match       https://my.wealthsimple.com/*
 // @grant       GM.xmlHttpRequest
-// @version     1.1.1
+// @version     1.1.2
 // @license     MIT
 // @author      eaglesemanation
 // @description Adds export buttons to Activity feed and to Account specific activity. They will export transactions within certain timeframe into CSV, options are "This Month", "Last 3 Month", "All". This should provide better transaction description than what is provided by preexisting CSV export feature.
@@ -19,29 +19,36 @@ const texts = {
   en_CA: {
     account: "Account",
     accountFundingTransactionNotesPrefix: "Direct deposit from",
+    accountDebitTransactionNotesPrefix: "Preauthorized debit to",
     amount: "Amount",
+    billPayment: "Bill payment to",
     buttonsLabel: "Export transactions as CSV",
     buttonThisMonth: "This month",
     buttonLast3Months: "Last 3 months",
     buttonAll: "All",
     category: "Category",
+    cryptoReceived: "Crypto received:",
+    cryptoStaked: "Crypto staked:",
     date: "Date",
     depositETransferNotesPrefix: "Received INTERAC e-Transfer from",
     dividendReceivedNotesPrefix: "Received dividend from",
     dividendReinvestedNotesPrefix: "Reinvested dividend into",
-    electronicFundsTransferNotesPrefix: "Direct deposit from",
+    electronicFundsTransferNotesPrefix: "Transfer",
+    from: "from",
     fromTimeFrame: "from",
     incentiveBonus: "Promotional bonus",
     institutionalTransferReceived: "Interinstitutional transfer from ",
     institutionalTransferFeeRefund: "Transfer fee refund",
     wealthSimple: "WealthSimple",
     interestNotes: "Interest",
-    orderNotesPrefix: "Bought",
+    buyOrderNotesPrefix: "Bought",
+    sellOrderNotesPrefix: "Sold",
     nonRegistered: "Non-registered",
     notes: "Notes",
     payee: "Payee",
-    transferDestination: "Transfered from ",
-    transferSource: "Transfered to ",
+    to: "to",
+    transferDestination: "Transfered from",
+    transferSource: "Transfered to",
     wealthSimpleCashTransferReceivedNotesPrefix:
       "Received WealthSimple Cash transfer from",
     wealthSimpleCashTransferSentNotesPrefix:
@@ -54,29 +61,36 @@ const texts = {
   fr_CA: {
     account: "Compte",
     accountFundingTransactionNotesPrefix: "Dépôt direct de",
+    accountDebitTransactionNotesPrefix: "Débit préautorisé à",
     amount: "Montant",
+    billPayment: "Paiement de facture à",
     buttonsLabel: "Exporter les transactions au format CSV",
     buttonThisMonth: "Ce mois-ci",
     buttonLast3Months: "Les 3 derniers mois",
     buttonAll: "Tout",
     category: "Categorie",
+    cryptoReceived: "Crypto reçue:",
+    cryptoStaked: "Crypto stakée:",
     date: "Date",
     depositETransferNotesPrefix: "Transfert INTERAC reçu de",
     dividendReceivedNotesPrefix: "Dividendes reçus de",
     dividendReinvestedNotesPrefix: "Dividendes réinvestis dans",
-    electronicFundsTransferNotesPrefix: "Dépôt direct de",
+    electronicFundsTransferNotesPrefix: "Transfert",
+    from: "de",
     fromTimeFrame: "du",
     incentiveBonus: "Prime de récompense",
     institutionalTransferReceived: "Transfert interinstitution",
     institutionalTransferFeeRefund: "Remboursement des frais de transfert",
     wealthSimple: "WealthSimple",
     interestNotes: "Intérêt",
-    orderNotesPrefix: "Acheté :",
+    buyOrderNotesPrefix: "Acheté:",
+    sellOrderNotesPrefix: "Vendu:",
     nonRegistered: "Non enregistré",
     notes: "Notes",
     payee: "Bénéficiaire",
-    transferDestination: "Transferé de ",
-    transferSource: "Transferé dans ",
+    to: "à",
+    transferDestination: "Transferé de",
+    transferSource: "Transferé dans",
     wealthSimpleCashTransferReceivedNotesPrefix:
       "Transfert WealthSimple Cash reçu de",
     wealthSimpleCashTransferSentNotesPrefix:
@@ -355,6 +369,9 @@ function getOauthCookie() {
  * @property {string} assetQuantity
  * @property {string} aftOriginatorName
  * @property {string} aftTransactionCategory
+ * @property {string} billPayCompanyName
+ * @property {string} billPayPayeeNickname
+ * @property {string} frequency
  */
 
 const activityFeedItemFragment = `
@@ -375,6 +392,9 @@ const activityFeedItemFragment = `
       assetQuantity
       aftOriginatorName
       aftTransactionCategory
+      billPayCompanyName
+      billPayPayeeNickname
+      frequency
     }
   `;
 
@@ -823,12 +843,35 @@ async function accountTransactionsToCsvBlob(transactions) {
       case "DIY_BUY/MARKET_ORDER":
       case "DIY_BUY/LIMIT_ORDER":
         payee = transaction.assetSymbol;
-        notes = `${texts[language].orderNotesPrefix} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
+        notes = `${texts[language].buyOrderNotesPrefix} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
+        break;
+      case "DIY_SELL/MARKET_ORDER":
+      case "DIY_SELL/LIMIT_ORDER":
+        payee = transaction.assetSymbol;
+        notes = `${texts[language].sellOrderNotesPrefix} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
+        break;
+      case "WITHDRAWAL/BILL_PAY":
+        payee = transaction.billPayPayeeNickname;
+        notes = `${texts[language].billPayment} ${transaction.billPayPayeeNickname} (${transaction.frequency})`;
+        category = transaction.aftTransactionCategory;
+        break;
+      case "WITHDRAWAL/AFT":
+        payee = transaction.aftOriginatorName;
+        notes = `${texts[language].accountDebitTransactionNotesPrefix} ${transaction.aftOriginatorName}`;
+        category = transaction.aftTransactionCategory;
         break;
       case "DEPOSIT/AFT":
         payee = transaction.aftOriginatorName;
         notes = `${texts[language].accountFundingTransactionNotesPrefix} ${transaction.aftOriginatorName}`;
         category = transaction.aftTransactionCategory;
+        break;
+      case "WITHDRAWAL/EFT":
+        info = await fundsTransfer(transaction.externalCanonicalId);
+        bankInfo = info.source.bankAccount;
+        payee = `${bankInfo.institutionName} ${
+          bankInfo.nickname || bankInfo.accountName
+        } ${bankInfo.accountNumber || ""}`;
+        notes = `${texts[language].electronicFundsTransferNotesPrefix} ${texts[language].to} ${payee}`;
         break;
       case "DEPOSIT/EFT":
         info = await fundsTransfer(transaction.externalCanonicalId);
@@ -836,7 +879,7 @@ async function accountTransactionsToCsvBlob(transactions) {
         payee = `${bankInfo.institutionName} ${
           bankInfo.nickname || bankInfo.accountName
         } ${bankInfo.accountNumber || ""}`;
-        notes = `${texts[language].electronicFundsTransferNotesPrefix} ${payee}`;
+        notes = `${texts[language].electronicFundsTransferNotesPrefix} ${texts[language].from} ${payee}`;
         break;
       case "P2P_PAYMENT/SEND_RECEIVED":
       case "P2P_PAYMENT/REQUEST":
@@ -852,6 +895,20 @@ async function accountTransactionsToCsvBlob(transactions) {
         if (transaction.p2pMessage) {
           notes += ` ${texts[language].withNote} : ${transaction.p2pMessage}`;
         }
+        break;
+      case "CRYPTO_TRANSFER/TRANSFER_IN":
+        payee = transaction.assetSymbol;
+        notes = `${texts[language].cryptoReceived} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
+        break;
+      case "CRYPTO_STAKING_ACTION/STAKE":
+      case "CRYPTO_STAKING_ACTION/AUTO_STAKE":
+        payee = transaction.assetSymbol;
+        notes = `${texts[language].cryptoStaked} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
+        break;
+      case "CRYPTO_BUY/MARKET_ORDER":
+      case "CRYPTO_BUY/LIMIT_ORDER":
+        payee = transaction.assetSymbol;
+        notes = `${texts[language].buyOrderNotesPrefix} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
         break;
       case "INTERNAL_TRANSFER/SOURCE":
         payee = getAccountLabel(transaction.opposingAccountId);
@@ -950,7 +1007,12 @@ function formatDate(date) {
 function getAccountLabel(accountId) {
   let accountIdParts = accountId.split('-');
   let accountLabel = accountIdParts[0];
-  if (accountId.startsWith('non-registered')) accountLabel = 'non-registered';
+  if (accountId.startsWith('non-registered')) {
+    accountLabel = 'non-registered';
+    if (accountIdParts.length >= 2) {
+      accountLabel += ` ${accountIdParts[2]}`;
+    }
+  }
   if (accountIdParts[1] === 'cash') accountLabel = 'cash';
   return accountLabel.toUpperCase();
 }
