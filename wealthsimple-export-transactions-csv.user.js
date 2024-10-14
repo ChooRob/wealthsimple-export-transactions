@@ -5,7 +5,7 @@
 // @namespace   Violentmonkey Scripts
 // @match       https://my.wealthsimple.com/*
 // @grant       GM.xmlHttpRequest
-// @version     1.1.3
+// @version     1.1.4
 // @license     MIT
 // @author      eaglesemanation
 // @description Adds export buttons to Activity feed and to Account specific activity. They will export transactions within certain timeframe into CSV, options are "This Month", "Last 3 Month", "All". This should provide better transaction description than what is provided by preexisting CSV export feature.
@@ -21,11 +21,13 @@ const texts = {
     accountFundingTransactionNotesPrefix: "Direct deposit from",
     accountDebitTransactionNotesPrefix: "Preauthorized debit to",
     amount: "Amount",
+    ANNUALY: "ANNUAL",
     billPayment: "Bill payment to",
     buttonsLabel: "Export transactions as CSV",
     buttonThisMonth: "This month",
     buttonLast3Months: "Last 3 months",
     buttonAll: "All",
+    buyOrderNotesPrefix: "Bought",
     category: "Category",
     cryptoReceived: "Crypto received:",
     cryptoStaked: "Crypto staked:",
@@ -41,11 +43,12 @@ const texts = {
     institutionalTransferFeeRefund: "Transfer fee refund",
     wealthSimple: "WealthSimple",
     interestNotes: "Interest",
-    buyOrderNotesPrefix: "Bought",
-    sellOrderNotesPrefix: "Sold",
+    MONTHLY: "Monthly",
     nonRegistered: "Non-registered",
     notes: "Notes",
+    ONE_TIME: "One time",
     payee: "Payee",
+    sellOrderNotesPrefix: "Sold",
     to: "to",
     transferDestination: "Transfered from",
     transferSource: "Transfered to",
@@ -63,11 +66,13 @@ const texts = {
     accountFundingTransactionNotesPrefix: "Dépôt direct de",
     accountDebitTransactionNotesPrefix: "Débit préautorisé à",
     amount: "Montant",
+    ANNUALY: "Annuel",
     billPayment: "Paiement de facture à",
     buttonsLabel: "Exporter les transactions au format CSV",
     buttonThisMonth: "Ce mois-ci",
     buttonLast3Months: "Les 3 derniers mois",
     buttonAll: "Tout",
+    buyOrderNotesPrefix: "Acheté:",
     category: "Categorie",
     cryptoReceived: "Crypto reçue:",
     cryptoStaked: "Crypto stakée:",
@@ -83,14 +88,15 @@ const texts = {
     institutionalTransferFeeRefund: "Remboursement des frais de transfert",
     wealthSimple: "WealthSimple",
     interestNotes: "Intérêt",
-    buyOrderNotesPrefix: "Acheté:",
-    sellOrderNotesPrefix: "Vendu:",
+    MONTHLY: "Mensuel",
     nonRegistered: "Non enregistré",
     notes: "Notes",
+    ONE_TIME: "Unique",
     payee: "Bénéficiaire",
     to: "à",
     transferDestination: "Transferé de",
     transferSource: "Transferé dans",
+    sellOrderNotesPrefix: "Vendu:",
     wealthSimpleCashTransferReceivedNotesPrefix:
       "Transfert WealthSimple Cash reçu de",
     wealthSimpleCashTransferSentNotesPrefix:
@@ -852,7 +858,7 @@ async function accountTransactionsToCsvBlob(transactions) {
         break;
       case "WITHDRAWAL/BILL_PAY":
         payee = transaction.billPayPayeeNickname;
-        notes = `${texts[language].billPayment} ${transaction.billPayPayeeNickname} (${transaction.frequency})`;
+        notes = `${texts[language].billPayment} ${transaction.billPayPayeeNickname || transaction.billPayCompanyName} (${texts[language][transaction.frequency]})`;
         category = transaction.aftTransactionCategory;
         break;
       case "WITHDRAWAL/AFT":
