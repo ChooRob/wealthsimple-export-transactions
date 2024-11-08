@@ -22,7 +22,6 @@ const texts = {
     accountDebitTransactionNotesPrefix: "Preauthorized debit",
     amount: "Amount",
     ANNUALY: "ANNUAL",
-    billPayment: "Bill payment",
     buttonsLabel: "Export transactions as CSV",
     buttonThisMonth: "This month",
     buttonLast3Months: "Last 3 months",
@@ -68,7 +67,6 @@ const texts = {
     accountDebitTransactionNotesPrefix: "Débit préautorisé",
     amount: "Montant",
     ANNUALY: "Annuel",
-    billPayment: "Paiement de facture",
     buttonsLabel: "Exporter les transactions au format CSV",
     buttonThisMonth: "Ce mois-ci",
     buttonLast3Months: "Les 3 derniers mois",
@@ -380,6 +378,7 @@ function getOauthCookie() {
  * @property {string} billPayCompanyName
  * @property {string} billPayPayeeNickname
  * @property {string} frequency
+ * @property {string} spendMerchant
  */
 
 const activityFeedItemFragment = `
@@ -402,7 +401,8 @@ const activityFeedItemFragment = `
       aftTransactionCategory
       billPayCompanyName
       billPayPayeeNickname
-      frequency
+      frequency,
+      spendMerchant
     }
   `;
 
@@ -858,9 +858,13 @@ async function accountTransactionsToCsvBlob(transactions) {
         payee = transaction.assetSymbol;
         notes = `${texts[language].sellOrderNotesPrefix} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
         break;
+      case "SPEND/PREPAID":
+        payee = transaction.spendMerchant;
+        notes = payee;
+        break;
       case "WITHDRAWAL/BILL_PAY":
         payee = transaction.billPayPayeeNickname || transaction.billPayCompanyName;
-        notes = `${texts[language].billPayment} ${texts[language].to} ${payee} (${texts[language][transaction.frequency]})`;
+        notes = `${payee} (${texts[language][transaction.frequency]})`;
         category = transaction.aftTransactionCategory;
         break;
       case "WITHDRAWAL/AFT":
