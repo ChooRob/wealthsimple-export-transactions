@@ -5,7 +5,7 @@
 // @namespace   Violentmonkey Scripts
 // @match       https://my.wealthsimple.com/*
 // @grant       GM.xmlHttpRequest
-// @version     1.1.5
+// @version     1.1.6
 // @license     MIT
 // @author      eaglesemanation
 // @description Adds export buttons to Activity feed and to Account specific activity. They will export transactions within certain timeframe into CSV, options are "This Month", "Last 3 Month", "All". This should provide better transaction description than what is provided by preexisting CSV export feature.
@@ -18,11 +18,11 @@ let language = defaultLanguage;
 const texts = {
   en_CA: {
     account: "Account",
-    accountFundingTransactionNotesPrefix: "Direct deposit from",
-    accountDebitTransactionNotesPrefix: "Preauthorized debit to",
+    accountFundingTransactionNotesPrefix: "Direct deposit",
+    accountDebitTransactionNotesPrefix: "Preauthorized debit",
     amount: "Amount",
     ANNUALY: "ANNUAL",
-    billPayment: "Bill payment to",
+    billPayment: "Bill payment",
     buttonsLabel: "Export transactions as CSV",
     buttonThisMonth: "This month",
     buttonLast3Months: "Last 3 months",
@@ -31,15 +31,16 @@ const texts = {
     category: "Category",
     cryptoReceived: "Crypto received:",
     cryptoStaked: "Crypto staked:",
+    cryptoStakingReward: "Crypto staking reward:",
     date: "Date",
-    depositETransferNotesPrefix: "Received INTERAC e-Transfer from",
-    dividendReceivedNotesPrefix: "Received dividend from",
+    depositETransferNotesPrefix: "Received INTERAC e-Transfer",
+    dividendReceivedNotesPrefix: "Received dividend",
     dividendReinvestedNotesPrefix: "Reinvested dividend into",
     electronicFundsTransferNotesPrefix: "Transfer",
     from: "from",
     fromTimeFrame: "from",
     incentiveBonus: "Promotional bonus",
-    institutionalTransferReceived: "Interinstitutional transfer from ",
+    institutionalTransferReceived: "Interinstitutional transfer",
     institutionalTransferFeeRefund: "Transfer fee refund",
     wealthSimple: "WealthSimple",
     interestNotes: "Interest",
@@ -50,24 +51,24 @@ const texts = {
     payee: "Payee",
     sellOrderNotesPrefix: "Sold",
     to: "to",
-    transferDestination: "Transfered from",
-    transferSource: "Transfered to",
+    transferDestination: "Transfered",
+    transferSource: "Transfered",
     wealthSimpleCashTransferReceivedNotesPrefix:
-      "Received WealthSimple Cash transfer from",
+      "Received WealthSimple Cash transfer",
     wealthSimpleCashTransferSentNotesPrefix:
-      "Sent WealthSimple Cash transfer to",
-    withdrawalETransferNotesPrefix: "Sent INTERAC e-Transfer to",
+      "Sent WealthSimple Cash transfer",
+    withdrawalETransferNotesPrefix: "Sent INTERAC e-Transfer",
     withNote: "with note",
     unknown: "Unknown",
     upToTimeFrame: "up to",
   },
   fr_CA: {
     account: "Compte",
-    accountFundingTransactionNotesPrefix: "Dépôt direct de",
-    accountDebitTransactionNotesPrefix: "Débit préautorisé à",
+    accountFundingTransactionNotesPrefix: "Dépôt direct",
+    accountDebitTransactionNotesPrefix: "Débit préautorisé",
     amount: "Montant",
     ANNUALY: "Annuel",
-    billPayment: "Paiement de facture à",
+    billPayment: "Paiement de facture",
     buttonsLabel: "Exporter les transactions au format CSV",
     buttonThisMonth: "Ce mois-ci",
     buttonLast3Months: "Les 3 derniers mois",
@@ -76,9 +77,10 @@ const texts = {
     category: "Categorie",
     cryptoReceived: "Crypto reçue:",
     cryptoStaked: "Crypto stakée:",
+    cryptoStakingReward: "Récompense pour crypto stakée:",
     date: "Date",
-    depositETransferNotesPrefix: "Transfert INTERAC reçu de",
-    dividendReceivedNotesPrefix: "Dividendes reçus de",
+    depositETransferNotesPrefix: "Transfert INTERAC reçu",
+    dividendReceivedNotesPrefix: "Dividendes reçus",
     dividendReinvestedNotesPrefix: "Dividendes réinvestis dans",
     electronicFundsTransferNotesPrefix: "Transfert",
     from: "de",
@@ -94,14 +96,14 @@ const texts = {
     ONE_TIME: "Unique",
     payee: "Bénéficiaire",
     to: "à",
-    transferDestination: "Transferé de",
-    transferSource: "Transferé dans",
+    transferDestination: "Transferé",
+    transferSource: "Transferé",
     sellOrderNotesPrefix: "Vendu:",
     wealthSimpleCashTransferReceivedNotesPrefix:
-      "Transfert WealthSimple Cash reçu de",
+      "Transfert WealthSimple Cash reçu",
     wealthSimpleCashTransferSentNotesPrefix:
-      "Transfert WealthSimple Cash envoyé à",
-    withdrawalETransferNotesPrefix: "Transfert INTERAC envoyé à",
+      "Transfert WealthSimple Cash envoyé",
+    withdrawalETransferNotesPrefix: "Transfert INTERAC envoyé",
     withNote: "avec la note",
     unknown: "Inconnu",
     upToTimeFrame: "jusqu'au",
@@ -831,16 +833,16 @@ async function accountTransactionsToCsvBlob(transactions) {
         break;
       case "WITHDRAWAL/E_TRANSFER":
         payee = transaction.eTransferEmail;
-        notes = `${texts[language].withdrawalETransferNotesPrefix} ${transaction.eTransferName}`;
+        notes = `${texts[language].withdrawalETransferNotesPrefix} ${texts[language].to} ${transaction.eTransferName}`;
         break;
       case "DEPOSIT/E_TRANSFER":
       case "DEPOSIT/E_TRANSFER_FUNDING":
         payee = transaction.eTransferEmail;
-        notes = `${texts[language].depositETransferNotesPrefix} ${transaction.eTransferName}`;
+        notes = `${texts[language].depositETransferNotesPrefix} ${texts[language].from} ${transaction.eTransferName}`;
         break;
       case "DIVIDEND/DIY_DIVIDEND":
         payee = transaction.assetSymbol;
-        notes = `${texts[language].dividendReceivedNotesPrefix} ${transaction.assetSymbol}`;
+        notes = `${texts[language].dividendReceivedNotesPrefix} ${texts[language].from} ${transaction.assetSymbol}`;
         break;
       case "DIY_BUY/DIVIDEND_REINVESTMENT":
         payee = transaction.assetSymbol;
@@ -858,17 +860,17 @@ async function accountTransactionsToCsvBlob(transactions) {
         break;
       case "WITHDRAWAL/BILL_PAY":
         payee = transaction.billPayPayeeNickname || transaction.billPayCompanyName;
-        notes = `${texts[language].billPayment} ${payee} (${texts[language][transaction.frequency]})`;
+        notes = `${texts[language].billPayment} ${texts[language].to} ${payee} (${texts[language][transaction.frequency]})`;
         category = transaction.aftTransactionCategory;
         break;
       case "WITHDRAWAL/AFT":
         payee = transaction.aftOriginatorName;
-        notes = `${texts[language].accountDebitTransactionNotesPrefix} ${transaction.aftOriginatorName}`;
+        notes = `${texts[language].accountDebitTransactionNotesPrefix} ${texts[language].to} ${transaction.aftOriginatorName}`;
         category = transaction.aftTransactionCategory;
         break;
       case "DEPOSIT/AFT":
         payee = transaction.aftOriginatorName;
-        notes = `${texts[language].accountFundingTransactionNotesPrefix} ${transaction.aftOriginatorName}`;
+        notes = `${texts[language].accountFundingTransactionNotesPrefix} ${texts[language].from} ${transaction.aftOriginatorName}`;
         category = transaction.aftTransactionCategory;
         break;
       case "WITHDRAWAL/EFT":
@@ -890,14 +892,14 @@ async function accountTransactionsToCsvBlob(transactions) {
       case "P2P_PAYMENT/SEND_RECEIVED":
       case "P2P_PAYMENT/REQUEST":
         payee = transaction.p2pHandle;
-        notes = `${texts[language].wealthSimpleCashTransferReceivedNotesPrefix} ${transaction.p2pHandle}`;
+        notes = `${texts[language].wealthSimpleCashTransferReceivedNotesPrefix} ${texts[language].from} ${transaction.p2pHandle}`;
         if (transaction.p2pMessage) {
           notes += ` ${texts[language].withNote} : ${transaction.p2pMessage}`;
         }
         break;
       case "P2P_PAYMENT/SEND":
         payee = transaction.p2pHandle;
-        notes = `${texts[language].wealthSimpleCashTransferSentNotesPrefix} ${transaction.p2pHandle}`;
+        notes = `${texts[language].wealthSimpleCashTransferSentNotesPrefix} ${texts[language].to} ${transaction.p2pHandle}`;
         if (transaction.p2pMessage) {
           notes += ` ${texts[language].withNote} : ${transaction.p2pMessage}`;
         }
@@ -911,6 +913,10 @@ async function accountTransactionsToCsvBlob(transactions) {
         payee = transaction.assetSymbol;
         notes = `${texts[language].cryptoStaked} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
         break;
+      case "CRYPTO_STAKING_REWARD":
+        payee = transaction.assetSymbol;
+        notes = `${texts[language].cryptoStakingReward} ${transaction.assetQuantity} ${transaction.assetSymbol}`;
+        break;
       case "CRYPTO_BUY/MARKET_ORDER":
       case "CRYPTO_BUY/LIMIT_ORDER":
         payee = transaction.assetSymbol;
@@ -918,11 +924,11 @@ async function accountTransactionsToCsvBlob(transactions) {
         break;
       case "INTERNAL_TRANSFER/SOURCE":
         payee = getAccountLabel(transaction.opposingAccountId);
-        notes = `${texts[language].transferSource} ${payee}`;
+        notes = `${texts[language].transferSource} ${texts[language].to} ${payee}`;
         break;
       case "INTERNAL_TRANSFER/DESTINATION":
         payee = getAccountLabel(transaction.opposingAccountId);
-        notes = `${texts[language].transferDestination} ${payee}`;
+        notes = `${texts[language].transferDestination} ${texts[language].from} ${payee}`;
         break;
       case "PROMOTION/INCENTIVE_BONUS":
         payee = texts[language].wealthSimple;
@@ -931,7 +937,7 @@ async function accountTransactionsToCsvBlob(transactions) {
       case "INSTITUTIONAL_TRANSFER_INTENT/TRANSFER_IN":
         info = await institutionalTransfer(transaction.externalCanonicalId);
         payee = `${info.institutionName} - ***${info.redactedInstitutionAccountNumber}`;
-        notes = `${texts[language].institutionalTransferReceived} ${payee}`;
+        notes = `${texts[language].institutionalTransferReceived} ${texts[language].from} ${payee}`;
         break;
       case "REFUND/TRANSFER_FEE_REFUND":
         payee = texts[language].wealthSimple;
