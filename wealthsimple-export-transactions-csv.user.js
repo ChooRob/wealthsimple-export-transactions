@@ -156,28 +156,27 @@ function getPageInfo() {
   if (pathParts.length === 4 && pathParts[2] === "account-details") {
     // All classes within HTML have been obfuscated/minified, using icons as a starting point, in hope that they don't change that much.
     const threeDotsSvgPath =
-      "M5.333 11.997c0 1.466-1.2 2.666-2.666 2.666A2.675 2.675 0 0 1 0 11.997C0 10.53 1.2 9.33 2.667 9.33c1.466 0 2.666 1.2 2.666 2.667Zm16-2.667a2.675 2.675 0 0 0-2.666 2.667c0 1.466 1.2 2.666 2.666 2.666 1.467 0 2.667-1.2 2.667-2.666 0-1.467-1.2-2.667-2.667-2.667ZM12 9.33a2.675 2.675 0 0 0-2.667 2.667c0 1.466 1.2 2.666 2.667 2.666 1.467 0 2.667-1.2 2.667-2.666 0-1.467-1.2-2.667-2.667-2.667Z";
+      "M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z";
     const threeDotsButtonContainerQuery = `div:has(> div > button svg > path[d="${threeDotsSvgPath}"])`;
 
-    info.pageType = "account-details";
+    info.pageType = pathParts[2];
     let anchor = document.querySelectorAll(threeDotsButtonContainerQuery);
     if (anchor.length !== 1) {
       return emptyInfo;
     }
     info.anchor = anchor[0];
-    info.readyPredicate = () => info.anchor.parentNode.children.length >= 2;
-  } else if (pathParts.length === 3 && pathParts[2] === "activity") {
-    const threeLinesSvgPath =
-      "M14 8c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1s.4-1 1-1h10c.6 0 1 .4 1 1Zm1-6H1c-.6 0-1 .4-1 1s.4 1 1 1h14c.6 0 1-.4 1-1s-.4-1-1-1Zm-4 10H5c-.6 0-1 .4-1 1s.4 1 1 1h6c.6 0 1-.4 1-1s-.4-1-1-1Z";
-    const threeLinesButtonContainerQuery = `div:has(> button svg > path[d="${threeLinesSvgPath}"])`;
+    info.readyPredicate = () => info.anchor.parentNode.parentNode.children.length >= 2;
+  } else  if (pathParts.length === 3 && (pathParts[2] === "activity")) {
+    // All classes within HTML have been obfuscated/minified, using icons as a starting point, in hope that the rest of the layout doesn't change much.
+    const buttonsContainerQuery = "main > div:has(h1)"
 
-    info.pageType = "activity";
-    let anchor = document.querySelectorAll(threeLinesButtonContainerQuery);
+    info.pageType = pathParts[2];
+    let anchor = document.querySelectorAll(buttonsContainerQuery);
     if (anchor.length !== 1) {
       return emptyInfo;
     }
     info.anchor = anchor[0];
-    info.readyPredicate = () => info.anchor.parentNode.children.length >= 2;
+    info.readyPredicate = () => info.anchor.querySelectorAll("h2").length >= 2;
   } else {
     // Didn't match any expected page
     return emptyInfo;
@@ -329,10 +328,14 @@ function addButtons(pageInfo) {
     buttonRow.appendChild(exportButton);
   }
 
-  let anchorParent = pageInfo.anchor.parentNode;
-  anchorParent.insertBefore(buttonRow, pageInfo.anchor);
-  anchorParent.style.gap = "1em";
-  pageInfo.anchor.style.marginLeft = "0";
+  if (pageInfo.anchor.querySelector("h1") !== null) {
+  pageInfo.anchor.querySelector("h1").parentNode.appendChild(buttonRow)
+  } else {
+    let anchorParent = pageInfo.anchor.parentNode;
+    anchorParent.insertBefore(buttonRow, pageInfo.anchor);
+    anchorParent.style.gap = "1em";
+    pageInfo.anchor.style.marginLeft = "0";
+  }
 }
 
 /**
