@@ -5,7 +5,7 @@
 // @namespace   Violentmonkey Scripts
 // @match       https://my.wealthsimple.com/*
 // @grant       GM.xmlHttpRequest
-// @version     1.1.7
+// @version     1.1.8
 // @license     MIT
 // @author      eaglesemanation
 // @description Adds export buttons to Activity feed and to Account specific activity. They will export transactions within certain timeframe into CSV, options are "This Month", "Last 3 Month", "All". This should provide better transaction description than what is provided by preexisting CSV export feature.
@@ -49,6 +49,7 @@ const texts = {
     ONE_TIME: "One time",
     payee: "Payee",
     sellOrderNotesPrefix: "Sold",
+    stockLendingInterestNotes: "Stock lending earnings",
     to: "to",
     transferDestination: "Transfered",
     transferSource: "Transfered",
@@ -93,10 +94,11 @@ const texts = {
     notes: "Notes",
     ONE_TIME: "Unique",
     payee: "Bénéficiaire",
+    sellOrderNotesPrefix: "Vendu:",
+    stockLendingInterestNotes: "Gains des prêts d'actions",
     to: "à",
     transferDestination: "Transferé",
     transferSource: "Transferé",
-    sellOrderNotesPrefix: "Vendu:",
     wealthSimpleCashTransferReceivedNotesPrefix:
       "Transfert WealthSimple Cash reçu",
     wealthSimpleCashTransferSentNotesPrefix:
@@ -833,6 +835,9 @@ async function accountTransactionsToCsvBlob(transactions) {
       case "INTEREST":
         payee = texts[language].wealthSimple;
         notes = texts[language].interestNotes;
+      case "INTEREST/FPL_INTEREST":
+        payee = texts[language].wealthSimple;
+        notes = texts[language].stockLendingInterestNotes;
         break;
       case "WITHDRAWAL/E_TRANSFER":
         payee = transaction.eTransferEmail;
