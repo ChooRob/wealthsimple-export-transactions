@@ -785,7 +785,32 @@ async function accountTransactionsToCsvBlob(transactions, accountNicknames) {
         notes = `Sold ${transaction.assetQuantity} ${transaction.assetSymbol} using fractional order`;
         break;
       }
- 
+
+      /*
+       * Options Transactions
+       */
+      case "OPTIONS_BUY/MARKET_ORDER": {
+        payee = transaction.assetSymbol;
+        notes = `Bought ${transaction.assetQuantity} contracts ${transaction.assetSymbol} using market order`;
+        break;
+      }
+      case "OPTIONS_BUY/LIMIT_ORDER": {
+        payee = transaction.assetSymbol;
+        notes = `Bought ${transaction.assetQuantity} contracts ${transaction.assetSymbol} using limit order`;
+        break;
+      }
+      case "OPTIONS_SELL/MARKET_ORDER": {
+        payee = transaction.assetSymbol;
+        notes = `Sold ${transaction.assetQuantity} contracts ${transaction.assetSymbol} using market order`;
+        break;
+      }
+      case "OPTIONS_SELL/LIMIT_ORDER": {
+        payee = transaction.assetSymbol;
+        notes = `Sold ${transaction.assetQuantity} contracts ${transaction.assetSymbol} using limit order`;
+        break;
+      }
+      
+
       /*
        * Crypto Transactions
        */
